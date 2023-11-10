@@ -1,0 +1,40 @@
+       # Read yaml
+        $yaml = Get-ADOPSFileContent -Project $ProjectName -RepositoryId $repoId -FilePath $YamlPath
+
+        # And parse it
+        $res = [regex]::Matches($yaml, '.*\s+(?<task>[a-zA-Z]+)@(?<version>[0-9]{1})')
+        $res | ForEach-Object {
+            $c = @{
+                PipelinePath = $YamlPath
+                id = $repoId
+                name = $_.Groups['task'].value
+                Version = $_.Groups['version'].value
+                ProjectName = $ProjectName 
+            }
+            if ($c.Version -lt ($tasks[$($_.Groups['task'].value)].version.major | Sort-Object -Descending | Select-Object -First 1)) {
+                # Add old tasks to the $old variable
+                $old += $c
+            }
+            # And output every used task to the $all variable
+            $c
+        }
+    }
+}
+
+break # in case you copy and run you may not want to run the bonus code ;)
+
+# Bonus 1 - Finding the repo details
+Get-ADOPSRepository -Project $old[0].ProjectName -Repository $old[0].id 
+
+## Bonus 2 - A proper review of the task
+$SavePath = 'c:\temp\oldTasks\'
+if (-Not (Test-Path $SavePath)) {
+    mkdir $SavePath
+}
+
+$old | ForEach-Object {
+    $version = $_.version
+    Get-ADOPSPipelineTask -Name $_.name -Organization $Organization | 
+        Where-Object -FilterScript {$_.version.major -eq $version} |
+        Save-ADOPSPipelineTask -Path $SavePath
+}
